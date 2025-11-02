@@ -70,11 +70,8 @@ class MLPPolicy(nn.Module):
         dist = self.forward(obs_t)
         a = dist.sample()
         if self.discrete:
-            a = a[0]
-            action = np.array(a.cpu().numpy())
-        else:
-            a = a[0]
-            action = a.cpu().numpy()
+            return a[0].item()
+        return a[0].cpu().numpy()
         ############################
 
         return action

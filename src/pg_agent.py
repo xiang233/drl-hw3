@@ -1,3 +1,4 @@
+from logging import info
 from typing import Optional, Sequence
 import numpy as np
 import torch
@@ -81,13 +82,9 @@ class PGAgent(nn.Module):
 
         # step 4: if needed, use all datapoints (s_t, a_t, q_t) to update the PG critic/baseline
         if self.critic is not None:
-            # perform `self.baseline_gradient_steps` updates to the critic/baseline network
-            critic_info: dict = None
-            ############################
-            # YOUR IMPLEMENTATION HERE #
-
-            ############################
-
+            critic_info: dict = {}
+            for _ in range(self.baseline_gradient_steps):
+                critic_info = self.critic.update(obs, q_values)
             info.update(critic_info)
 
         return info
@@ -136,21 +133,37 @@ class PGAgent(nn.Module):
 
         Operates on flat 1D NumPy arrays.
         """
-        if self.critic is None:   
-            advantages = q_values.copy()
-        else:
-            values = self.critic.forward(ptu.from_numpy(obs)).detach().cpu().numpy().squeeze()
-            advantages = q_values - values
-            assert values.shape == q_values.shape
+        # if self.critic is None:   
+        #     advantages = q_values.copy()
+        # else:
+        #     values = self.critic.forward(ptu.from_numpy(obs)).detach().cpu().numpy().squeeze()
+        #     advantages = q_values - values
+        #     assert values.shape == q_values.shape
 
-        # normalize the advantages to have a mean of zero and a standard deviation of one within the batch
+        # # normalize the advantages to have a mean of zero and a standard deviation of one within the batch
+        # if self.normalize_advantages:
+        #     adv_mean = advantages.mean()
+        #     adv_std = advantages.std()
+        #     if adv_std == 0:
+        #         advantages = advantages - adv_mean
+        #     else:
+        #         advantages = (advantages - adv_mean) / (adv_std + 1e-8)
+
+
+        advantages = q_values.copy()
+
+    
+        if self.critic is not None:
+            with torch.no_grad():
+                vpred = self.critic(ptu.from_numpy(obs))  # (N,)
+            vpred = ptu.to_numpy(vpred)
+            assert vpred.shape == q_values.shape
+            advantages = q_values - vpred
+
         if self.normalize_advantages:
             adv_mean = advantages.mean()
-            adv_std = advantages.std()
-            if adv_std == 0:
-                advantages = advantages - adv_mean
-            else:
-                advantages = (advantages - adv_mean) / (adv_std + 1e-8)
+            adv_std = advantages.std() + 1e-8
+            advantages = (advantages - adv_mean) / adv_std
 
         return advantages
 
